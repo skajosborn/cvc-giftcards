@@ -1,0 +1,325 @@
+:root {
+  --paper: #f3ecdf;
+  --paper-deep: #e7dcc8;
+  --ink: #1c1915;
+  --muted: #5e564c;
+  --pine: #1b3c34;
+  --pine-soft: #e4efe9;
+  --clay: #b24a28;
+  --brass: #8d6840;
+  --line: rgba(28, 25, 21, 0.14);
+  --danger: #8c2e2a;
+  --shadow: 0 24px 60px rgba(58, 36, 16, 0.08);
+  color: var(--ink);
+  background: var(--paper);
+  font-family: Outfit, sans-serif;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 0% -10%, rgba(178, 74, 40, 0.14), transparent 55%),
+    radial-gradient(700px 380px at 100% 0%, rgba(27, 60, 52, 0.12), transparent 50%),
+    var(--paper);
+}
+
+button, input, select { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--clay);
+  outline-offset: 3px;
+}
+
+.preview-banner {
+  margin: 0;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: var(--paper);
+  text-align: center;
+}
+
+.register {
+  width: min(1080px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 28px 0 64px;
+}
+
+.mast {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.kicker, .status-label, .meta {
+  margin: 0;
+  color: var(--brass);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1, h2, .balance, .card-number {
+  font-family: Fraunces, serif;
+  font-weight: 520;
+  letter-spacing: -0.035em;
+}
+
+h1 {
+  margin: 4px 0 0;
+  font-size: clamp(3.2rem, 8vw, 5.6rem);
+  line-height: 0.88;
+}
+
+h2 { margin: 0; font-size: 2.4rem; line-height: 1; }
+
+.workspace {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.panel {
+  background: rgba(255, 251, 245, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+}
+
+.identity, .stage { padding: 22px; }
+
+.identity p:last-child { margin-bottom: 0; }
+
+.person { margin: 10px 0 4px; font-size: 1.35rem; }
+
+.identity-links { display: flex; gap: 16px; }
+
+.quiet { color: var(--muted); margin: 0; }
+
+.stack { display: grid; gap: 12px; }
+
+.stage > button {
+  width: 100%;
+  text-align: left;
+  padding: 20px 18px;
+  font-size: 1.25rem;
+}
+
+.stage-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+label { display: grid; gap: 6px; font-weight: 650; }
+
+input[type="text"], input[type="email"], select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-weight: 400;
+}
+
+.money-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fffdf8;
+  padding-left: 16px;
+}
+
+.money-input > span {
+  color: var(--muted);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 2rem;
+  font-weight: 500;
+}
+
+.money-input input {
+  border: 0;
+  background: transparent;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 2rem;
+  padding-left: 4px;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.choice {
+  display: flex;
+  gap: 8px;
+}
+
+.choice label {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fffdf8;
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 18px;
+  background: var(--pine);
+  color: #f6f3ea;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button.secondary, button.link {
+  background: transparent;
+  color: var(--ink);
+}
+
+button.secondary { border: 1px solid var(--line); }
+
+button.link { padding-inline: 0; text-decoration: underline; text-underline-offset: 4px; }
+
+button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+.balance {
+  margin: 8px 0 0;
+  font-size: clamp(4.4rem, 14vw, 7.4rem);
+  line-height: 0.86;
+}
+
+.card-number {
+  margin: 8px 0 0;
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  line-height: 1.05;
+}
+
+.sample-mark {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--clay);
+  color: white;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.note {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--pine-soft);
+}
+
+.note.error { background: #f8e6e1; color: var(--danger); }
+
+.check { display: flex; gap: 10px; align-items: center; font-weight: 500; }
+
+.history { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; }
+
+.history li, .figures div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.figures { display: grid; gap: 18px; }
+
+.figures strong {
+  font-family: Fraunces, serif;
+  font-size: 2.2rem;
+  font-weight: 520;
+}
+
+.signin {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 28px;
+  align-items: end;
+  min-height: calc(100vh - 92px);
+}
+
+.signin .panel { padding: 28px; }
+
+.lede { font-size: 1.2rem; max-width: 38rem; }
+
+dialog {
+  border: 0;
+  border-radius: 24px;
+  padding: 22px;
+  width: min(420px, calc(100% - 32px));
+  box-shadow: var(--shadow);
+}
+
+dialog::backdrop { background: rgba(28, 25, 21, 0.46); }
+
+.print-sheet {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.print-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.print-card .card-number { font-size: 1.35rem; }
+
+@media print {
+  .preview-banner,
+  .mast,
+  .identity,
+  .note,
+  .no-print { display: none; }
+  .register { width: auto; padding: 0; }
+  .workspace { display: block; }
+  .panel { background: #fff; box-shadow: none; }
+  .print-sheet { grid-template-columns: 1fr 1fr; }
+  .print-card { break-inside: avoid; }
+}
+
+.scanner video {
+  width: 100%;
+  border-radius: 20px;
+  background: #111;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+@media (max-width: 800px) {
+  .workspace, .signin { grid-template-columns: 1fr; }
+  .signin { min-height: auto; align-items: start; }
+  .register { width: min(560px, calc(100% - 20px)); padding-top: 18px; }
+  h1 { font-size: 3.4rem; }
+  .workspace { display: flex; flex-direction: column; }
+  .stage { order: 1; }
+  .identity { order: 2; }
+}

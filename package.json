@@ -1,0 +1,9 @@
+{
+  "name": "restoring-hope-gift-cards",
+  "private": true,
+  "description": "Database and Apps Script backend for the Restoring Hope gift card system.",
+  "scripts": {
+    "test": "node test/run-tests.js && node test/money.test.js",
+    "dev": "npm run dev --prefix web"
+  }
+}
