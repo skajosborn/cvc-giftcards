@@ -1,7 +1,7 @@
 /** Posts the Google ID token to Apps Script. The body email is never sent. */
 
 export async function callRegister(action, fields, idToken) {
-  const url = import.meta.env.VITE_APPS_SCRIPT_URL;
+  const url = import.meta.env.DEV ? '/apps-script' : import.meta.env.VITE_APPS_SCRIPT_URL;
   if (!url) {
     throw new Error('Add the Apps Script web app URL before using the register.');
   }

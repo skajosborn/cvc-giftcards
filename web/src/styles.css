@@ -1,17 +1,19 @@
 :root {
-  --paper: #f3ecdf;
-  --paper-deep: #e7dcc8;
+  --paper: #f7f4ee;
+  --paper-deep: #efe6d6;
   --ink: #1c1915;
-  --muted: #5e564c;
-  --pine: #1b3c34;
-  --pine-soft: #e4efe9;
-  --clay: #b24a28;
-  --brass: #8d6840;
-  --line: rgba(28, 25, 21, 0.14);
+  --muted: #5c564e;
+  --pine: #1d4d3c;
+  --pine-soft: #e7f0ea;
+  --clay: #d6453d;
+  --brass: #d6453d;
+  --gold: #e6d3a1;
+  --navy: #0c2340;
+  --line: rgba(28, 25, 21, 0.12);
   --danger: #8c2e2a;
-  --shadow: 0 24px 60px rgba(58, 36, 16, 0.08);
-  color: var(--ink);
-  background: var(--paper);
+  --shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
+  color: #f4efe4;
+  background: var(--navy);
   font-family: Outfit, sans-serif;
   font-size: 17px;
   line-height: 1.45;
@@ -23,9 +25,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(900px 420px at 0% -10%, rgba(178, 74, 40, 0.14), transparent 55%),
-    radial-gradient(700px 380px at 100% 0%, rgba(27, 60, 52, 0.12), transparent 50%),
-    var(--paper);
+    radial-gradient(880px 520px at 88% -8%, rgba(36, 72, 120, 0.45), transparent 58%),
+    var(--navy);
 }
 
 button, input, select { font: inherit; color: inherit; }
@@ -38,8 +39,8 @@ button, input, select { font: inherit; color: inherit; }
 .preview-banner {
   margin: 0;
   padding: 12px 20px;
-  background: var(--ink);
-  color: var(--paper);
+  background: #081628;
+  color: var(--gold);
   text-align: center;
 }
 
@@ -52,10 +53,18 @@ button, input, select { font: inherit; color: inherit; }
 .mast {
   display: flex;
   justify-content: space-between;
-  align-items: end;
+  align-items: center;
   gap: 16px;
   margin-bottom: 22px;
 }
+
+.mast .brand-logo { width: 72px; }
+
+.mast .brand-name { font-size: 1.05rem; }
+
+.mast .brand-hope { color: var(--gold); }
+
+.mast .scene-label { margin: 0; }
 
 .kicker, .status-label, .meta {
   margin: 0;
@@ -88,9 +97,9 @@ h2 { margin: 0; font-size: 2.4rem; line-height: 1; }
 }
 
 .panel {
-  background: rgba(255, 251, 245, 0.78);
-  border: 1px solid var(--line);
-  border-radius: 28px;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 22px;
   box-shadow: var(--shadow);
 }
 
@@ -191,7 +200,7 @@ button {
 
 button.secondary, button.link {
   background: transparent;
-  color: var(--ink);
+  color: var(--pine);
 }
 
 button.secondary { border: 1px solid var(--line); }
@@ -253,15 +262,277 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-weight: 520;
 }
 
-.signin {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 28px;
-  align-items: end;
-  min-height: calc(100vh - 92px);
+.landing {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
 }
 
-.signin .panel { padding: 28px; }
+.landing > .note {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 16px;
+  width: min(420px, calc(100% - 32px));
+  transform: translateX(-50%);
+}
+
+.signin {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: visible;
+  padding: 28px 48px 0 36px;
+  color: #f4efe4;
+  background-color: #0c2340;
+  background-image: url('./bg.png');
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: cover;
+}
+
+.signin-top,
+.signin-layout { position: relative; z-index: 2; }
+
+.signin-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding-left: clamp(200px, 22vw, 320px);
+}
+
+.brand { display: flex; align-items: center; gap: 16px; }
+
+.brand-logo {
+  width: 108px;
+  height: auto;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.35));
+}
+
+.brand-name {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.brand-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+  color: #d6453d;
+  font-size: 0.7rem;
+}
+
+.brand-rule i {
+  display: block;
+  width: 42px;
+  height: 2px;
+  background: #d6453d;
+}
+
+.brand-hope {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.scene-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 0;
+  color: rgba(244, 239, 228, 0.72);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.scene-label::before {
+  content: "";
+  width: 72px;
+  height: 1px;
+  background: rgba(244, 239, 228, 0.45);
+}
+
+.signin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 28px;
+  align-items: start;
+  flex: 1;
+  padding: 28px 8px 24px clamp(200px, 22vw, 320px);
+}
+
+.signin h1 {
+  max-width: 9ch;
+  margin: 0;
+  color: #f7f3ea;
+  font-size: clamp(4.2rem, 6vw, 6.2rem);
+  font-weight: 640;
+  line-height: 0.88;
+}
+
+.accent-rule {
+  display: block;
+  width: 72px;
+  height: 3px;
+  margin: 18px 0 16px;
+  background: #d6453d;
+}
+
+.signin .lede {
+  max-width: 28rem;
+  margin: 0;
+  color: rgba(247, 243, 234, 0.88);
+  font-size: 1.15rem;
+}
+
+.shops {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shops li {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 108px;
+  padding: 0 18px;
+  color: #f4efe4;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shops li + li { border-left: 1px solid rgba(244, 239, 228, 0.28); }
+
+.shops svg {
+  width: 42px;
+  height: 42px;
+}
+
+.shops svg path,
+.shops svg circle {
+  fill: none;
+  stroke: #e6d3a1;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.signin-card {
+  background: #f7f4ee;
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
+}
+
+.signin-body { padding: 26px 24px 22px; }
+
+.signin-body h2 {
+  color: #1c1915;
+  font-size: 2.5rem;
+}
+
+.signin-body .quiet { color: #5c564e; }
+
+.signin-preview {
+  width: 100%;
+  text-align: center;
+  background: #1d4d3c;
+}
+
+.setup-hint {
+  margin: 0;
+  color: #6d675f;
+  font-size: 0.92rem;
+}
+
+.setup-hint code {
+  display: block;
+  margin-top: 4px;
+  color: #3d3934;
+  font-size: 0.75rem;
+}
+
+.gift-slip {
+  position: absolute;
+  z-index: 4;
+  right: 9vw;
+  bottom: 58px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 340px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, #fbf8f2, #efe6d6);
+  color: var(--ink);
+  border-radius: 16px;
+  transform: rotate(-8deg);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.35);
+}
+
+.gift-box {
+  width: 64px;
+  height: 64px;
+  flex: none;
+}
+
+.gift-box path,
+.gift-box rect {
+  fill: #1d4d3c;
+  stroke: #f7f4ee;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.gift-slip-copy { display: grid; gap: 6px; flex: 1; }
+
+.gift-slip-kicker,
+.gift-slip-name {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.gift-slip-kicker { color: #1d4d3c; }
+
+.gift-slip-bars {
+  height: 36px;
+  background: repeating-linear-gradient(
+    90deg,
+    #1c1915 0 2px,
+    transparent 2px 4px,
+    #1c1915 4px 5px,
+    transparent 5px 8px,
+    #1c1915 8px 12px,
+    transparent 12px 14px
+  );
+}
+
+.gift-slip-rule {
+  width: 36px;
+  height: 2px;
+  background: #d6453d;
+}
 
 .lede { font-size: 1.2rem; max-width: 38rem; }
 
@@ -315,9 +586,21 @@ dialog::backdrop { background: rgba(28, 25, 21, 0.46); }
 }
 
 @media (max-width: 800px) {
-  .workspace, .signin { grid-template-columns: 1fr; }
-  .signin { min-height: auto; align-items: start; }
+  .workspace { grid-template-columns: 1fr; }
+  .signin {
+    min-height: 0;
+    padding: 18px 16px 24px;
+    background-position: left top;
+  }
+  .signin-top { flex-direction: column; padding-left: 96px; }
+  .brand-logo { width: 72px; }
+  .scene-label { display: none; }
+  .signin-layout { grid-template-columns: 1fr; padding: 18px 0 12px 96px; }
+  .signin h1 { font-size: 3.3rem; }
+  .shops { flex-wrap: wrap; }
+  .gift-slip { position: relative; right: auto; bottom: auto; width: min(300px, 92%); margin: 20px 0 0 auto; }
   .register { width: min(560px, calc(100% - 20px)); padding-top: 18px; }
+  .register.landing { width: 100%; margin: 0; padding: 0; }
   h1 { font-size: 3.4rem; }
   .workspace { display: flex; flex-direction: column; }
   .stage { order: 1; }

@@ -1,6 +1,47 @@
 import { useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatCents } from './register.js';
+import cvcLogo from './CVC Logo.png';
+
+function TagIcon() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M24 18c.2-3.4.3-5.4 2.2-6.8 2.3-1.7 5.4-.1 4.7 2.6" />
+      <path d="M8 32 24 18l16 14H8" />
+    </svg>
+  );
+}
+
+function BagIcon() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M15 21h18v13.5a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3V21z" />
+      <path d="M19.5 21v-3a4.5 4.5 0 0 1 9 0v3" />
+      <path d="M15 27.5h18" />
+      <circle cx="24" cy="31.5" r="1.5" />
+    </svg>
+  );
+}
+
+function CupIcon() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M14 16h16v8a8 8 0 0 1-16 0V16z" />
+      <path d="M30 18h4a5 5 0 0 1 0 10h-4" />
+      <path d="M20 10c0 2-2 2-2 4M26 8c0 2-2 2-2 4" />
+    </svg>
+  );
+}
+
+function GiftIcon() {
+  return (
+    <svg className="gift-box" viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="8" y="28" width="48" height="28" rx="2" />
+      <rect x="6" y="20" width="52" height="12" rx="2" />
+      <path d="M32 20v36M32 20c-6-12-20-8-14 0M32 20c6-12 20-8 14 0" />
+    </svg>
+  );
+}
 
 export function SignIn({ clientId, onCredential, onPreview }) {
   const host = useRef(null);
@@ -34,20 +75,53 @@ export function SignIn({ clientId, onCredential, onPreview }) {
 
   return (
     <section className="signin">
-      <div>
-        <p className="kicker">Combat Veterans to Careers</p>
-        <h1>The register</h1>
-        <p className="lede">Look up a gift card, take a payment, or redeem a balance. Google confirms the account. The employee list confirms the person works here.</p>
+      <header className="signin-top">
+        <div className="brand">
+          <img className="brand-logo" src={cvcLogo} alt="" />
+          <div className="brand-lockup">
+            <p className="brand-name">Combat Veterans<br />to Careers</p>
+            <p className="brand-rule"><i /><span>★</span><i /></p>
+            <p className="brand-hope">Restoring Hope</p>
+          </div>
+        </div>
+        <p className="scene-label">Gift card management</p>
+      </header>
+      <div className="signin-layout">
+        <div className="signin-copy">
+          <h1>Gift Card Management</h1>
+          <span className="accent-rule" />
+          <p className="lede">Manage gift cards for the thrift store, boutique, and café — all in one place.</p>
+          <ul className="shops">
+            <li><BagIcon /> Thrift store</li>
+            <li><TagIcon /> Boutique</li>
+            <li><CupIcon /> Café</li>
+          </ul>
+        </div>
+        <div className="signin-card">
+          <div className="signin-body stack">
+            <h2>Sign In</h2>
+            <p className="quiet">Use the Google account on the employee list.</p>
+            {clientId ? <div className="signin-google" ref={host} id="google-signin" /> : (
+              <p className="setup-hint">
+                Google sign-in is not connected on this computer yet.
+                <code>VITE_GOOGLE_CLIENT_ID</code>
+                <code>VITE_APPS_SCRIPT_URL</code>
+              </p>
+            )}
+            {import.meta.env.DEV ? (
+              <button className="signin-preview" type="button" onClick={onPreview}>Preview the layout</button>
+            ) : null}
+          </div>
+        </div>
       </div>
-      <div className="panel stack">
-        <h2>Sign in</h2>
-        <p className="quiet">Typing an email on this page does not sign you in.</p>
-        {clientId ? <div ref={host} id="google-signin" /> : (
-          <p className="note">Add <code>VITE_GOOGLE_CLIENT_ID</code> and <code>VITE_APPS_SCRIPT_URL</code> to <code>web/.env</code>, then restart the register.</p>
-        )}
-        {import.meta.env.DEV ? (
-          <button className="link" type="button" onClick={onPreview}>Preview the layout</button>
-        ) : null}
+      <div className="gift-slip" aria-hidden="true">
+        <GiftIcon />
+        <div className="gift-slip-copy">
+          <span className="gift-slip-kicker">Gift card</span>
+          <span className="gift-slip-bars" />
+          <span className="gift-slip-rule" />
+          <span className="gift-slip-name">Restoring Hope</span>
+        </div>
       </div>
     </section>
   );

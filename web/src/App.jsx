@@ -11,6 +11,7 @@ import {
   startOfZonedDayIso
 } from './register.js';
 import { BlankSeries, CardView, Home, Identity, Lookup, Notice, Sell, SignIn, Today } from './screens.jsx';
+import cvcLogo from './CVC Logo.png';
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -386,7 +387,7 @@ export default function App() {
 
   if (!session) {
     return (
-      <main className="register">
+      <main className="register landing">
         <Notice message={message} tone={tone} />
         <SignIn clientId={clientId} onCredential={setIdToken} onPreview={() => { setSession(previewSession); report(''); }} />
       </main>
@@ -398,10 +399,14 @@ export default function App() {
       {preview ? <p className="preview-banner">Layout preview. You are not signed in. These controls cannot change a gift card.</p> : null}
       <main className="register">
         <header className="mast">
-          <div>
-            <p className="kicker">Restoring Hope</p>
-            <h1>Register</h1>
+          <div className="brand">
+            <img className="brand-logo" src={cvcLogo} alt="" />
+            <div className="brand-lockup">
+              <p className="brand-name">Combat Veterans<br />to Careers</p>
+              <p className="brand-hope">Restoring Hope</p>
+            </div>
           </div>
+          <p className="scene-label">Gift card management</p>
         </header>
         <Notice message={message} tone={tone} />
         <div className="workspace">
