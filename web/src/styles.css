@@ -109,7 +109,9 @@ h2 { margin: 0; font-size: 2.4rem; line-height: 1; }
 
 .person { margin: 10px 0 4px; font-size: 1.35rem; }
 
-.identity-links { display: flex; gap: 16px; }
+.identity-links { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+
+.identity-links button { white-space: nowrap; }
 
 .quiet { color: var(--muted); margin: 0; }
 
@@ -203,6 +205,36 @@ button.secondary, button.link {
   color: var(--pine);
 }
 
+button.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  margin: 0;
+  padding: 14px 0;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+button.card-row .card-number {
+  display: block;
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+button.card-row .quiet,
+button.card-row .meta { display: block; }
+
+.card-balance {
+  font-family: Fraunces, serif;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
 button.secondary { border: 1px solid var(--line); }
 
 button.link { padding-inline: 0; text-decoration: underline; text-underline-offset: 4px; }
@@ -238,13 +270,27 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   padding: 12px 14px;
   border-radius: 16px;
   background: var(--pine-soft);
+  color: var(--ink);
 }
 
 .note.error { background: #f8e6e1; color: var(--danger); }
 
 .check { display: flex; gap: 10px; align-items: center; font-weight: 500; }
 
-.history { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; }
+.history, .people { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; }
+
+.people li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.people .person { margin: 0; }
+
+.people .meta { margin-top: 4px; }
 
 .history li, .figures div {
   display: flex;
@@ -255,6 +301,10 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 
 .figures { display: grid; gap: 18px; }
+
+.stage > .quiet + .figures { margin-top: 16px; }
+
+.figures + .quiet { margin-top: 16px; }
 
 .figures strong {
   font-family: Fraunces, serif;

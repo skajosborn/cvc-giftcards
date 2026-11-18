@@ -55,12 +55,9 @@ async function forwardToScript(scriptUrl, body) {
   if (![301, 302, 303, 307, 308].includes(first.status)) return first;
   const next = first.headers.get('location');
   if (!next) return first;
-  return fetch(next, {
-    method: 'POST',
-    redirect: 'follow',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body
-  });
+  // Apps Script runs doPost on the first request and redirects to a
+  // googleusercontent echo URL that only serves the result to a GET.
+  return fetch(next, { method: 'GET', redirect: 'follow' });
 }
 
 export default defineConfig(({ mode }) => {

@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { callRegister } from './api.js';
+import { loadGoogleIdentity } from './googleIdentity.js';
 import {
   dollarsToCents,
+  forgetIdToken,
   formatCents,
   isCompleteCardNumber,
+  msUntilIdTokenRefresh,
   newIdempotencyKey,
   normalizeCardNumber,
   parseBatchCount,
+  cardsForStore,
   qrTokenFromScan,
-  startOfZonedDayIso
+  readStoredIdToken,
+  reloadCardsOnStoreChange,
+  reloadTodayOnStoreChange,
+  rememberIdToken,
+  startOfZonedDayIso,
+  storeScopeFields,
+  todayReportFields
 } from './register.js';
-import { BlankSeries, CardView, Home, Identity, Lookup, Notice, Sell, SignIn, Today } from './screens.jsx';
+import { BlankSeries, CardList, CardView, Home, Identity, Lookup, Notice, Sell, SignIn, Staff, Today } from './screens.jsx';
 import cvcLogo from './CVC Logo.png';
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -36,7 +46,7 @@ const sampleBlanks = [
 ];
 
 export default function App() {
-  const [idToken, setIdToken] = useState('');
+  const [idToken, setIdToken] = useState(() => readStoredIdToken(window.localStorage));
   const [session, setSession] = useState(null);
   const [locations, setLocations] = useState([]);
   const [locationId, setLocationId] = useState('');
@@ -44,13 +54,20 @@ export default function App() {
   const [cardNumber, setCardNumber] = useState('');
   const [bundle, setBundle] = useState(null);
   const [amount, setAmount] = useState('');
+  const [buyerName, setBuyerName] = useState('');
   const [paymentChecked, setPaymentChecked] = useState(false);
   const [draft, setDraft] = useState({ amount: '', cardType: 'PHYSICAL', customerName: '' });
   const [issued, setIssued] = useState(null);
   const [blankCount, setBlankCount] = useState('10');
   const [blanks, setBlanks] = useState(null);
   const blankKey = useRef('');
+  const deskRequest = useRef(0);
   const [desk, setDesk] = useState(null);
+  const [people, setPeople] = useState([]);
+  const [issuedCards, setIssuedCards] = useState([]);
+  const [cardsLocationId, setCardsLocationId] = useState(null);
+  const cardsRequest = useRef(0);
+  const [hire, setHire] = useState({ fullName: '', email: '', role: 'EMPLOYEE', locationId: '' });
   const [scanning, setScanning] = useState(false);
   const [scannerNote, setScannerNote] = useState('');
   const [message, setMessage] = useState('');
@@ -63,6 +80,12 @@ export default function App() {
   const report = useCallback((text, nextTone) => {
     setMessage(text);
     setTone(nextTone || '');
+  }, []);
+
+  const acceptCredential = useCallback((token) => {
+    if (!token) return;
+    rememberIdToken(window.localStorage, token);
+    setIdToken(token);
   }, []);
 
   useEffect(() => {
@@ -83,6 +106,7 @@ export default function App() {
       })
       .catch((error) => {
         if (!cancelled) {
+          forgetIdToken(window.localStorage);
           setIdToken('');
           report(error.message, 'error');
         }
@@ -90,6 +114,28 @@ export default function App() {
       .finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
   }, [idToken, report]);
+
+  useEffect(() => {
+    if (!clientId || !idToken) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      loadGoogleIdentity().then((gis) => {
+        if (cancelled) return;
+        gis.initialize({
+          client_id: clientId,
+          auto_select: true,
+          callback: (response) => {
+            if (response && response.credential) acceptCredential(response.credential);
+          }
+        });
+        gis.prompt();
+      }).catch(() => {});
+    }, msUntilIdTokenRefresh(idToken, Date.now()));
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [clientId, idToken, acceptCredential]);
 
   function actingLocation() {
     if (preview) return '';
@@ -115,6 +161,7 @@ export default function App() {
     const history = await callRegister('getTransactionHistory', { cardId: card.card_id }, idToken);
     setBundle({ card: card, history: history.transactions || [] });
     setAmount('');
+    setBuyerName(card.customer_name || '');
     setPaymentChecked(false);
     setScreen('card');
   }
@@ -282,7 +329,7 @@ export default function App() {
       blankKey.current = '';
       setBlanks(result.cards || []);
       setScreen('blanks');
-      report(result.replayed ? 'This series was already created.' : 'Made ' + result.count + ' cards at $0.');
+      report(result.replayed ? 'This series was already created.' : 'Made ' + result.count + (result.count === 1 ? ' card' : ' cards') + ' at $0.');
     });
   }
 
@@ -299,6 +346,7 @@ export default function App() {
       history: []
     });
     setAmount('');
+    setBuyerName('');
     setPaymentChecked(false);
     setScreen('card');
     report('Sample unsold card. The preview cannot put a balance on it.');
@@ -321,9 +369,11 @@ export default function App() {
         idempotencyKey: newIdempotencyKey('activate')
       };
       if (openValue) fields.amountCents = cents;
+      if (buyerName.trim()) fields.customerName = buyerName.trim();
       const result = await callRegister('activateGiftCard', fields, idToken);
       setBundle({ card: result.card, history: bundle.history });
       setAmount('');
+      setBuyerName('');
       setPaymentChecked(false);
       const refreshed = await refreshHistory(result.card);
       report(refreshed
@@ -350,37 +400,199 @@ export default function App() {
     });
   }
 
-  async function loadDesk() {
+  function openCardList() {
+    loadCards(locationId);
+  }
+
+  function openListedCard(card) {
+    if (preview) {
+      setBundle({ card: sampleCard, history: [] });
+      setScreen('card');
+      report('Sample card. Nothing was looked up.');
+      return;
+    }
+    run(() => openCard({ cardNumber: card.card_number }));
+  }
+
+  function openStaff() {
+    setScreen('staff');
+    if (preview) {
+      setLocations([
+        { location_id: 'thrift', location_name: 'Restoring Hope Thrift Store' },
+        { location_id: 'boutique', location_name: 'Restoring Hope Boutique' },
+        { location_id: 'cafe', location_name: 'Honor Grounds Café' }
+      ]);
+      setPeople([{
+        employee_id: 'preview-admin',
+        full_name: 'Preview cashier',
+        email: 'preview@restoringhope.test',
+        role: 'ADMIN',
+        location_id: '',
+        is_active: true
+      }]);
+      report('Sample staff. The preview cannot add a person.');
+      return;
+    }
+    if (!hire.locationId && locationId) {
+      setHire(Object.assign({}, hire, { locationId: locationId }));
+    }
+    run(async () => {
+      const listed = await callRegister('listEmployees', {}, idToken);
+      setPeople(listed.employees || []);
+    });
+  }
+
+  async function addEmployee() {
+    if (preview) {
+      report('Preview stops here. You are not signed in.');
+      return;
+    }
+    const fullName = hire.fullName.trim();
+    const email = hire.email.trim();
+    if (!fullName || !email) {
+      report('Enter a name and the Google email.', 'error');
+      return;
+    }
+    if (hire.role !== 'ADMIN' && !hire.locationId) {
+      report('Choose the store for this person.', 'error');
+      return;
+    }
+    await run(async () => {
+      const fields = { fullName: fullName, email: email, role: hire.role };
+      if (hire.role !== 'ADMIN') fields.locationId = hire.locationId;
+      await callRegister('createEmployee', fields, idToken);
+      const listed = await callRegister('listEmployees', {}, idToken);
+      setPeople(listed.employees || []);
+      setHire({ fullName: '', email: '', role: 'EMPLOYEE', locationId: hire.locationId });
+      report(fullName + ' can sign in.');
+    });
+  }
+
+  async function toggleEmployee(person) {
+    if (preview) {
+      report('Preview stops here. You are not signed in.');
+      return;
+    }
+    await run(async () => {
+      await callRegister('updateEmployeeAccess', {
+        employeeId: person.employee_id,
+        isActive: person.is_active !== true
+      }, idToken);
+      const listed = await callRegister('listEmployees', {}, idToken);
+      setPeople(listed.employees || []);
+      report(person.is_active === true
+        ? person.full_name + ' can no longer sign in.'
+        : person.full_name + ' can sign in again.');
+    });
+  }
+
+  function changeStore(nextLocationId) {
+    setLocationId(nextLocationId);
+    if (reloadTodayOnStoreChange(screen)) loadDesk(nextLocationId);
+    if (reloadCardsOnStoreChange(screen)) loadCards(nextLocationId);
+  }
+
+  async function loadCards(nextLocationId) {
+    const chosen = typeof nextLocationId === 'string' ? nextLocationId : locationId;
+    setScreen('cards');
+    if (preview) {
+      setIssuedCards(cardsForStore([
+        {
+          card_id: 'sample-active',
+          card_number: 'RH-SAMP-LEAB-CDEF',
+          customer_name: 'Jordan Customer',
+          current_balance: 3150,
+          status: 'ACTIVE',
+          issued_location_id: 'cafe',
+          issued_location_name: 'Honor Grounds Café'
+        },
+        {
+          card_id: 'sample-pending',
+          card_number: 'RH-SAMP-LEBB-CDEF',
+          customer_name: '',
+          current_balance: 0,
+          status: 'PENDING',
+          issued_location_id: 'boutique',
+          issued_location_name: 'Restoring Hope Boutique'
+        }
+      ], chosen));
+      setCardsLocationId(chosen);
+      report('Sample cards. The preview is not the live list.');
+      return;
+    }
+    const requestId = cardsRequest.current + 1;
+    cardsRequest.current = requestId;
+    setBusy(true);
+    report('');
+    try {
+      const listed = await callRegister('listGiftCards', storeScopeFields(chosen), idToken);
+      if (cardsRequest.current !== requestId) return;
+      setIssuedCards(cardsForStore(listed.cards || [], chosen));
+      setCardsLocationId(chosen);
+    } catch (error) {
+      if (cardsRequest.current !== requestId) return;
+      report(error.message, 'error');
+    } finally {
+      if (cardsRequest.current === requestId) setBusy(false);
+    }
+  }
+
+  async function loadDesk(nextLocationId) {
+    const chosen = typeof nextLocationId === 'string' ? nextLocationId : locationId;
     if (preview) {
       setDesk({
         sales: { value_sold_cents: 0 },
         redemptions: { value_redeemed_cents: 0 },
-        outstanding: { outstanding_liability_cents: 0, in_sync: true }
+        outstanding: { outstanding_liability_cents: 0, in_sync: true },
+        forLocationId: chosen
       });
       setScreen('desk');
       report('Sample totals. The preview is not connected.');
       return;
     }
-    await run(async () => {
-      const fields = { start: startOfZonedDayIso('America/Chicago') };
-      if (locationId) fields.locationId = locationId;
+    const requestId = deskRequest.current + 1;
+    deskRequest.current = requestId;
+    setBusy(true);
+    report('');
+    try {
+      const fields = todayReportFields(chosen, startOfZonedDayIso('America/Chicago'));
       const [sales, redemptions, outstanding] = await Promise.all([
         callRegister('getGiftCardSalesReport', fields, idToken),
         callRegister('getGiftCardRedemptionReport', fields, idToken),
-        callRegister('getOutstandingGiftCardBalance', {}, idToken)
+        callRegister('getOutstandingGiftCardBalance', storeScopeFields(chosen), idToken)
       ]);
-      setDesk({ sales: sales, redemptions: redemptions, outstanding: outstanding });
+      if (deskRequest.current !== requestId) return;
+      setDesk({
+        sales: sales,
+        redemptions: redemptions,
+        outstanding: outstanding,
+        forLocationId: chosen
+      });
       setScreen('desk');
-    });
+    } catch (error) {
+      if (deskRequest.current !== requestId) return;
+      report(error.message, 'error');
+    } finally {
+      if (deskRequest.current === requestId) setBusy(false);
+    }
   }
 
-  function signOut() {
+  async function signOut() {
+    forgetIdToken(window.localStorage);
+    try {
+      const gis = await loadGoogleIdentity();
+      gis.disableAutoSelect();
+    } catch (error) {
+      // Sign-out still clears this register when Google is unreachable.
+    }
     setIdToken('');
     setSession(null);
     setLocations([]);
     setBundle(null);
     setIssued(null);
     setDesk(null);
+    setIssuedCards([]);
+    setCardsLocationId(null);
     setScreen('home');
     report('');
   }
@@ -389,7 +601,7 @@ export default function App() {
     return (
       <main className="register landing">
         <Notice message={message} tone={tone} />
-        <SignIn clientId={clientId} onCredential={setIdToken} onPreview={() => { setSession(previewSession); report(''); }} />
+        <SignIn clientId={clientId} restoring={Boolean(idToken)} onCredential={acceptCredential} onPreview={() => { setSession(previewSession); report(''); }} />
       </main>
     );
   }
@@ -414,14 +626,17 @@ export default function App() {
             session={session}
             locations={locations}
             locationId={locationId}
-            onLocation={setLocationId}
+            onLocation={changeStore}
             onSignOut={signOut}
             onHome={() => { setScreen('home'); setIssued(null); report(''); }}
             onDesk={loadDesk}
+            onStaff={openStaff}
+            onCards={openCardList}
           />
           {screen === 'home' ? (
             <Home
               onLookup={() => setScreen('lookup')}
+              onCards={openCardList}
               onSell={() => { setIssued(null); setScreen('sell'); }}
               onBlanks={() => { setBlanks(null); setScreen('blanks'); report(''); }}
               canManage={canManage}
@@ -444,6 +659,8 @@ export default function App() {
               history={bundle.history}
               amount={amount}
               onAmount={setAmount}
+              buyerName={buyerName}
+              onBuyerName={setBuyerName}
               paymentChecked={paymentChecked}
               onPayment={setPaymentChecked}
               onRedeem={redeem}
@@ -480,7 +697,33 @@ export default function App() {
             />
           ) : null}
           {screen === 'desk' && desk ? (
-            <Today sales={desk.sales} redemptions={desk.redemptions} outstanding={desk.outstanding} />
+            <Today
+              sales={desk.forLocationId === locationId ? desk.sales : null}
+              redemptions={desk.forLocationId === locationId ? desk.redemptions : null}
+              outstanding={desk.forLocationId === locationId ? desk.outstanding : null}
+              pending={desk.forLocationId !== locationId}
+              storeName={(locations.find((location) => location.location_id === locationId) || {}).location_name || ''}
+            />
+          ) : null}
+          {screen === 'cards' ? (
+            <CardList
+              cards={cardsLocationId === locationId ? issuedCards : []}
+              storeName={(locations.find((location) => location.location_id === locationId) || {}).location_name || ''}
+              pending={cardsLocationId !== locationId}
+              onOpen={openListedCard}
+            />
+          ) : null}
+          {screen === 'staff' ? (
+            <Staff
+              people={people}
+              locations={locations}
+              draft={hire}
+              onDraft={(patch) => setHire(Object.assign({}, hire, patch))}
+              onCreate={addEmployee}
+              onToggle={toggleEmployee}
+              busy={busy}
+              sample={preview}
+            />
           ) : null}
         </div>
       </main>

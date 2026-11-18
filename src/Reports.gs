@@ -25,8 +25,9 @@ function getGiftCardRedemptionReport(request) {
 function getOutstandingGiftCardBalance(request) {
   var actor = rhRequireActor_(request, { roles: ['ADMIN', 'MANAGER'], action: 'REPORT_LIABILITY' });
   return rhWithLock_(function (ctx) {
-    rhReloadActor_(ctx, actor);
-    return rhOutstanding_(ctx);
+    actor = rhReloadActor_(ctx, actor);
+    var scope = rhReportScope_(ctx, actor, request);
+    return rhOutstanding_(ctx, scope.locationId);
   });
 }
 
@@ -162,9 +163,16 @@ function rhRedeemEffect_(txn, byId) {
   return 0;
 }
 
-function rhOutstanding_(ctx) {
-  var detection = rhDetectionReport_(ctx);
+function rhOutstanding_(ctx, locationId) {
   var cards = rhReadSheet_(ctx, RH_SHEET.GIFT_CARDS).records;
+  if (locationId) {
+    var issuedHere = [];
+    for (var issued = 0; issued < cards.length; issued++) {
+      if (cards[issued].issued_location_id === locationId) issuedHere.push(cards[issued]);
+    }
+    cards = issuedHere;
+  }
+  var detection = rhDetectionForCards_(ctx, cards);
   var activeBalance = 0;
   var suspendedBalance = 0;
   var activeCount = 0;
@@ -184,6 +192,7 @@ function rhOutstanding_(ctx) {
   }
   return {
     money_unit: RH_MONEY_UNIT,
+    location_id: locationId || '',
     outstanding_liability_cents: rhExactSum_(activeBalance, suspendedBalance),
     active_balance_cents: activeBalance,
     suspended_balance_cents: suspendedBalance,
@@ -198,7 +207,10 @@ function rhOutstanding_(ctx) {
 }
 
 function rhDetectionReport_(ctx) {
-  var cards = rhReadSheet_(ctx, RH_SHEET.GIFT_CARDS).records;
+  return rhDetectionForCards_(ctx, rhReadSheet_(ctx, RH_SHEET.GIFT_CARDS).records);
+}
+
+function rhDetectionForCards_(ctx, cards) {
   var txns = rhReadSheet_(ctx, RH_SHEET.TRANSACTIONS).records;
   var problems = [];
   var pending = [];

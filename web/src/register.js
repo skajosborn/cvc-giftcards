@@ -55,9 +55,98 @@ export function qrTokenFromScan(raw) {
   return /^[0-9a-f]{64}$/.test(token) ? token : '';
 }
 
+const ID_TOKEN_STORAGE_KEY = 'rhgc.google-id-token';
+const ID_TOKEN_SKEW_MS = 60 * 1000;
+const ID_TOKEN_REFRESH_LEAD_MS = 5 * 60 * 1000;
+
+function decodeBase64Url(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((value.length + 3) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+export function idTokenExpiryMs(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3 || !parts[1]) return 0;
+  try {
+    const payload = JSON.parse(decodeBase64Url(parts[1]));
+    const exp = Number(payload.exp);
+    if (!Number.isFinite(exp) || exp <= 0) return 0;
+    return exp * 1000;
+  } catch (error) {
+    return 0;
+  }
+}
+
+export function rememberIdToken(storage, token) {
+  try {
+    storage.setItem(ID_TOKEN_STORAGE_KEY, token);
+  } catch (error) {
+    // Private browsing can refuse storage. The in-memory session still works.
+  }
+}
+
+export function forgetIdToken(storage) {
+  try {
+    storage.removeItem(ID_TOKEN_STORAGE_KEY);
+  } catch (error) {
+    // Nothing stored to clear.
+  }
+}
+
+export function readStoredIdToken(storage, nowMs) {
+  const now = typeof nowMs === 'number' ? nowMs : Date.now();
+  let token = '';
+  try {
+    token = storage.getItem(ID_TOKEN_STORAGE_KEY) || '';
+  } catch (error) {
+    return '';
+  }
+  const exp = idTokenExpiryMs(token);
+  if (!exp || exp <= now + ID_TOKEN_SKEW_MS) {
+    forgetIdToken(storage);
+    return '';
+  }
+  return token;
+}
+
+export function msUntilIdTokenRefresh(token, nowMs) {
+  const exp = idTokenExpiryMs(token);
+  if (!exp) return 0;
+  return Math.max(0, exp - nowMs - ID_TOKEN_REFRESH_LEAD_MS);
+}
+
 export function newIdempotencyKey(prefix) {
   const uuid = globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
   return (prefix + '-' + uuid).slice(0, 128);
+}
+
+export function todayReportFields(locationId, start) {
+  const fields = { start: start };
+  if (locationId) fields.locationId = locationId;
+  return fields;
+}
+
+export function reloadTodayOnStoreChange(screen) {
+  return screen === 'desk';
+}
+
+export function storeScopeFields(locationId) {
+  if (!locationId) return {};
+  return { locationId: locationId };
+}
+
+export function reloadCardsOnStoreChange(screen) {
+  return screen === 'cards';
+}
+
+export function cardsForStore(cards, locationId) {
+  if (!locationId) return cards;
+  return cards.filter(function (card) {
+    return card.issued_location_id === locationId;
+  });
 }
 
 export function startOfZonedDayIso(timeZone, now) {

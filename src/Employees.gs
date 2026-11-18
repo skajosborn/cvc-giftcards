@@ -58,6 +58,23 @@ function createEmployee(request) {
   });
 }
 
+function listEmployees(request) {
+  rhRequireActor_(request, { roles: ['ADMIN'], action: 'EMPLOYEE_LIST' });
+  return rhWithLock_(function (ctx) {
+    var records = rhReadSheet_(ctx, RH_SHEET.EMPLOYEES).records;
+    var employees = [];
+    for (var i = 0; i < records.length; i++) employees.push(rhPublicEmployee_(records[i]));
+    employees.sort(function (a, b) {
+      var left = String(a.full_name).toLowerCase();
+      var right = String(b.full_name).toLowerCase();
+      if (left < right) return -1;
+      if (left > right) return 1;
+      return 0;
+    });
+    return { employees: employees };
+  });
+}
+
 function updateEmployeeAccess(request) {
   var actor = rhRequireActor_(request, { roles: ['ADMIN'], action: 'EMPLOYEE_ACCESS_CHANGE' });
   return rhWithLock_(function (ctx) {

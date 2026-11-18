@@ -1,5 +1,19 @@
 const assert = require('assert');
 
+function memoryStorage() {
+  const data = {};
+  return {
+    getItem(key) { return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null; },
+    setItem(key, value) { data[key] = String(value); },
+    removeItem(key) { delete data[key]; }
+  };
+}
+
+function jwt(payload) {
+  const part = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return part({ alg: 'RS256', typ: 'JWT' }) + '.' + part(payload) + '.signature';
+}
+
 async function main() {
   const register = await import('../web/src/register.js');
   assert.strictEqual(register.parseBatchCount('3'), 3);
@@ -35,6 +49,37 @@ async function main() {
     hourCycle: 'h23'
   }).format(new Date(start));
   assert.ok(shown.endsWith('00:00'), shown);
+  const startOfDay = '2026-11-18T06:00:00.000Z';
+  assert.deepStrictEqual(register.todayReportFields('cafe-id', startOfDay), {
+    start: startOfDay,
+    locationId: 'cafe-id'
+  });
+  assert.deepStrictEqual(register.todayReportFields('', startOfDay), { start: startOfDay });
+  assert.strictEqual(register.reloadTodayOnStoreChange('desk'), true);
+  assert.strictEqual(register.reloadTodayOnStoreChange('home'), false);
+  assert.strictEqual(register.reloadTodayOnStoreChange('cards'), false);
+  assert.deepStrictEqual(register.storeScopeFields('cafe-id'), { locationId: 'cafe-id' });
+  assert.deepStrictEqual(register.storeScopeFields(''), {});
+  assert.strictEqual(register.reloadCardsOnStoreChange('cards'), true);
+  assert.strictEqual(register.reloadCardsOnStoreChange('desk'), false);
+  const thriftCard = { issued_location_id: 'thrift', card_number: 'A' };
+  const cafeCard = { issued_location_id: 'cafe', card_number: 'B' };
+  assert.deepStrictEqual(register.cardsForStore([thriftCard, cafeCard], 'thrift'), [thriftCard]);
+  assert.deepStrictEqual(register.cardsForStore([thriftCard, cafeCard], ''), [thriftCard, cafeCard]);
+  const storage = memoryStorage();
+  const future = jwt({ exp: 2_000 });
+  register.rememberIdToken(storage, future);
+  assert.strictEqual(register.readStoredIdToken(storage, 1_000_000), future);
+  const almostExpired = jwt({ exp: 1_050 });
+  register.rememberIdToken(storage, almostExpired);
+  assert.strictEqual(register.readStoredIdToken(storage, 1_000_000), '');
+  assert.strictEqual(storage.getItem('rhgc.google-id-token'), null);
+  register.rememberIdToken(storage, 'not-a-token');
+  assert.strictEqual(register.readStoredIdToken(storage, 1_000_000), '');
+  register.forgetIdToken(storage);
+  assert.strictEqual(register.readStoredIdToken(storage, 1_000_000), '');
+  assert.strictEqual(register.msUntilIdTokenRefresh(future, 1_000_000), 700_000);
+  assert.strictEqual(register.msUntilIdTokenRefresh(future, 1_800_000), 0);
   console.log('register helpers passed');
 }
 

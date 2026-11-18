@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { loadGoogleIdentity } from './googleIdentity.js';
 import { formatCents } from './register.js';
 import cvcLogo from './CVC Logo.png';
 
@@ -43,24 +44,24 @@ function GiftIcon() {
   );
 }
 
-export function SignIn({ clientId, onCredential, onPreview }) {
+export function SignIn({ clientId, onCredential, onPreview, restoring }) {
   const host = useRef(null);
 
   useEffect(() => {
-    if (!clientId || !host.current) return undefined;
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.onload = () => {
-      if (!window.google || !host.current) return;
-      window.google.accounts.id.initialize({
+    if (restoring || !clientId || !host.current) return undefined;
+    let cancelled = false;
+    loadGoogleIdentity().then((gis) => {
+      if (cancelled || !host.current) return;
+      gis.initialize({
         client_id: clientId,
+        auto_select: true,
+        button_auto_select: true,
         callback: (response) => {
           if (response && response.credential) onCredential(response.credential);
         }
       });
       host.current.replaceChildren();
-      window.google.accounts.id.renderButton(host.current, {
+      gis.renderButton(host.current, {
         type: 'standard',
         theme: 'filled_black',
         size: 'large',
@@ -68,10 +69,10 @@ export function SignIn({ clientId, onCredential, onPreview }) {
         shape: 'pill',
         width: 320
       });
-    };
-    document.head.appendChild(script);
-    return () => script.remove();
-  }, [clientId, onCredential]);
+      gis.prompt();
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [clientId, onCredential, restoring]);
 
   return (
     <section className="signin">
@@ -99,16 +100,16 @@ export function SignIn({ clientId, onCredential, onPreview }) {
         </div>
         <div className="signin-card">
           <div className="signin-body stack">
-            <h2>Sign In</h2>
-            <p className="quiet">Use the Google account on the employee list.</p>
-            {clientId ? <div className="signin-google" ref={host} id="google-signin" /> : (
+            <h2>{restoring ? 'Welcome back' : 'Sign In'}</h2>
+            <p className="quiet">{restoring ? 'Signing you back in.' : 'Use the Google account on the employee list.'}</p>
+            {restoring ? null : clientId ? <div className="signin-google" ref={host} id="google-signin" /> : (
               <p className="setup-hint">
                 Google sign-in is not connected on this computer yet.
                 <code>VITE_GOOGLE_CLIENT_ID</code>
                 <code>VITE_APPS_SCRIPT_URL</code>
               </p>
             )}
-            {import.meta.env.DEV ? (
+            {!restoring && import.meta.env.DEV ? (
               <button className="signin-preview" type="button" onClick={onPreview}>Preview the layout</button>
             ) : null}
           </div>
@@ -127,7 +128,7 @@ export function SignIn({ clientId, onCredential, onPreview }) {
   );
 }
 
-export function Identity({ session, locations, locationId, onLocation, onSignOut, onHome, onDesk }) {
+export function Identity({ session, locations, locationId, onLocation, onSignOut, onHome, onDesk, onStaff, onCards }) {
   const place = session.location ? session.location.location_name : 'All stores';
   return (
     <aside className="panel identity stack">
@@ -150,7 +151,13 @@ export function Identity({ session, locations, locationId, onLocation, onSignOut
       <div className="identity-links">
         <button className="link" type="button" onClick={onHome}>Counter</button>
         {session.employee.role !== 'EMPLOYEE' ? (
+          <button className="link" type="button" onClick={onCards}>Cards</button>
+        ) : null}
+        {session.employee.role !== 'EMPLOYEE' ? (
           <button className="link" type="button" onClick={onDesk}>Today</button>
+        ) : null}
+        {session.employee.role === 'ADMIN' ? (
+          <button className="link" type="button" onClick={onStaff}>Staff</button>
         ) : null}
         <button className="link" type="button" onClick={onSignOut}>Sign out</button>
       </div>
@@ -158,13 +165,14 @@ export function Identity({ session, locations, locationId, onLocation, onSignOut
   );
 }
 
-export function Home({ onLookup, onSell, onBlanks, canManage }) {
+export function Home({ onLookup, onCards, onSell, onBlanks, canManage }) {
   return (
     <section className="panel stage stack">
       <div className="stage-head">
         <h2>What do you need?</h2>
       </div>
       <button type="button" onClick={onLookup}>Find a card</button>
+      {canManage ? <button className="secondary" type="button" onClick={onCards}>See all cards</button> : null}
       {canManage ? <button className="secondary" type="button" onClick={onBlanks}>Make blank cards</button> : null}
       <button className="secondary" type="button" onClick={onSell}>Sell a new card</button>
       <p className="quiet">Printed cards stay at $0 until someone buys one.</p>
@@ -207,7 +215,7 @@ function ScannerNote({ note }) {
   );
 }
 
-export function CardView({ card, history, amount, onAmount, paymentChecked, onPayment, onRedeem, onReload, onAssign, onSuspend, canManage, busy, sample }) {
+export function CardView({ card, history, amount, onAmount, buyerName, onBuyerName, paymentChecked, onPayment, onRedeem, onReload, onAssign, onSuspend, canManage, busy, sample }) {
   const unsold = card.status === 'PENDING';
   const openValue = unsold && !card.initial_amount;
   return (
@@ -237,6 +245,10 @@ export function CardView({ card, history, amount, onAmount, paymentChecked, onPa
               </span>
             </label>
           ) : null}
+          <label>
+            Name on the card
+            <input value={buyerName} onChange={(event) => onBuyerName(event.target.value)} autoComplete="name" />
+          </label>
           <label className="check">
             <input type="checkbox" checked={paymentChecked} onChange={(event) => onPayment(event.target.checked)} />
             Payment is in the register
@@ -360,7 +372,99 @@ export function Sell({ draft, issued, onDraft, onCreate, onActivate, paymentChec
   );
 }
 
-export function Today({ sales, redemptions, outstanding }) {
+function roleLabel(role) {
+  if (role === 'MANAGER') return 'Manager';
+  if (role === 'ADMIN') return 'Admin';
+  return 'Cashier';
+}
+
+export function Staff({ people, locations, draft, onDraft, onCreate, onToggle, busy, sample }) {
+  const storeName = (locationId) => {
+    const match = locations.find((location) => location.location_id === locationId);
+    return match ? match.location_name : 'All stores';
+  };
+  return (
+    <section className="panel stage stack">
+      <div className="stage-head">
+        <h2>Staff</h2>
+      </div>
+      <p className="quiet">Use the Google account they will sign in with. They can open the register as soon as this is saved.</p>
+      <label>
+        Name
+        <input value={draft.fullName} onChange={(event) => onDraft({ fullName: event.target.value })} autoComplete="name" />
+      </label>
+      <label>
+        Google email
+        <input value={draft.email} onChange={(event) => onDraft({ email: event.target.value })} autoComplete="off" inputMode="email" />
+      </label>
+      <label>
+        Role
+        <select value={draft.role} onChange={(event) => onDraft({ role: event.target.value })}>
+          <option value="EMPLOYEE">Cashier</option>
+          <option value="MANAGER">Manager</option>
+          <option value="ADMIN">Admin</option>
+        </select>
+      </label>
+      {draft.role === 'ADMIN' ? null : (
+        <label>
+          Store
+          <select value={draft.locationId} onChange={(event) => onDraft({ locationId: event.target.value })}>
+            <option value="">Choose a store</option>
+            {locations.map((location) => (
+              <option key={location.location_id} value={location.location_id}>{location.location_name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <button type="button" onClick={onCreate} disabled={busy || sample}>{sample ? 'Preview stops here' : 'Add this person'}</button>
+      <ul className="people">
+        {people.map((person) => (
+          <li key={person.employee_id}>
+            <div>
+              <p className="person">{person.full_name}</p>
+              <p className="quiet">{person.email}</p>
+              <p className="meta">{roleLabel(person.role)} · {storeName(person.location_id)}{person.is_active ? '' : ' · No access'}</p>
+            </div>
+            <button className="secondary" type="button" onClick={() => onToggle(person)} disabled={busy || sample}>
+              {person.is_active ? 'Remove access' : 'Restore access'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function CardList({ cards, onOpen, storeName, pending }) {
+  const intro = storeName
+    ? 'Cards sold at ' + storeName + ', the person each one was sold to, and the balance left on it.'
+    : 'Every card, the person it was sold to, and the balance left on it.';
+  return (
+    <section className="panel stage stack">
+      <div className="stage-head">
+        <h2>Cards</h2>
+      </div>
+      <p className="quiet">{intro}</p>
+      {pending ? <p className="quiet">Loading this store... Please wait.</p> : null}
+      {!pending && cards.length ? cards.map((card) => (
+        <button className="card-row" type="button" key={card.card_id} onClick={() => onOpen(card)}>
+          <span>
+            <span className="card-number">{card.card_number}</span>
+            <span className="quiet">{card.customer_name || 'No customer yet'}</span>
+            <span className="meta">{statusLabel(card.status)} · {card.issued_location_name || 'Store not recorded'}</span>
+          </span>
+          <span className="card-balance">{formatCents(card.current_balance)}</span>
+        </button>
+      )) : null}
+      {!pending && !cards.length ? (
+        <p className="quiet">{storeName ? 'No cards at this store yet.' : 'No cards yet.'}</p>
+      ) : null}
+    </section>
+  );
+}
+
+export function Today({ sales, redemptions, outstanding, storeName, pending }) {
+  const where = storeName ? ' at ' + storeName : '';
   return (
     <section className="panel stage">
       <div className="stage-head">
@@ -369,20 +473,26 @@ export function Today({ sales, redemptions, outstanding }) {
           <h2>Today</h2>
         </div>
       </div>
+      {pending ? <p className="quiet">Loading this store... Please wait.</p> : null}
       <div className="figures">
         <div>
-          <span>Sold</span>
+          <span>Sold today{where}</span>
           <strong>{sales ? formatCents(sales.value_sold_cents) : '—'}</strong>
         </div>
         <div>
-          <span>Redeemed</span>
+          <span>Redeemed today{where}</span>
           <strong>{redemptions ? formatCents(redemptions.value_redeemed_cents) : '—'}</strong>
         </div>
         <div>
-          <span>Still outstanding</span>
+          <span>Still on cards{where}</span>
           <strong>{outstanding ? formatCents(outstanding.outstanding_liability_cents) : '—'}</strong>
         </div>
       </div>
+      <p className="quiet">
+        {storeName
+          ? 'Still on cards is the money left on cards sold at this store. It is not today’s sales minus today’s redemptions.'
+          : 'Still on cards is the money left on every card, at every store. It is not today’s sales minus today’s redemptions.'}
+      </p>
       {outstanding && outstanding.in_sync === false ? (
         <p className="note error">The card balances and the ledger do not match. Ask an admin to review the mismatch report.</p>
       ) : null}

@@ -55,7 +55,11 @@ function runAllTests() {
     testVoidRedeemNetsOutOfRedemptionReport,
     testQrTokenIsUnpredictableAndAbsentFromAudit,
     testFractionalCentsAndNegativeBalancesAreRejected,
-    testWebRequestRejectsUnverifiedCaller
+    testWebRequestRejectsUnverifiedCaller,
+    testAdminCanListEmployees,
+    testManagerCanListIssuedCardsWithoutSecrets,
+    testSelectedStoreLimitsCardsAndLiability,
+    testActivationStoresThePurchaserName
   ];
   var results = [];
   try {
@@ -1044,6 +1048,29 @@ function testReportsDoNotDoubleCountIssueAndActivation() {
   rhTestAssertEqual_(sales.issued_count, 1);
   rhTestAssertEqual_(sales.activated_count, 1);
   rhTestAssertEqual_(sales.value_sold_cents, 5000);
+  var thriftSales = getGiftCardSalesReport({
+    idToken: fx.adminToken,
+    locationId: fx.locations.THRIFT.location_id
+  });
+  rhTestAssertEqual_(thriftSales.location_id, fx.locations.THRIFT.location_id);
+  rhTestAssertEqual_(thriftSales.value_sold_cents, 5000);
+  var cafeSales = getGiftCardSalesReport({
+    idToken: fx.adminToken,
+    locationId: fx.locations.CAFE.location_id
+  });
+  rhTestAssertEqual_(cafeSales.location_id, fx.locations.CAFE.location_id);
+  rhTestAssertEqual_(cafeSales.value_sold_cents, 0);
+  rhTestAssertEqual_(cafeSales.activated_count, 0);
+  var cafeRedemptions = getGiftCardRedemptionReport({
+    idToken: fx.adminToken,
+    locationId: fx.locations.CAFE.location_id
+  });
+  rhTestAssertEqual_(cafeRedemptions.value_redeemed_cents, 2000);
+  var thriftSalesRedemptions = getGiftCardRedemptionReport({
+    idToken: fx.adminToken,
+    locationId: fx.locations.THRIFT.location_id
+  });
+  rhTestAssertEqual_(thriftSalesRedemptions.value_redeemed_cents, 0);
   rhTestAssert_(sales.daily.length >= 1, 'Sales report should include a daily total');
   rhTestAssert_(sales.employees.length >= 1, 'Sales report should include employee activity');
   var redemptions = getGiftCardRedemptionReport({ idToken: fx.adminToken });
@@ -1237,6 +1264,188 @@ function testWebRequestRejectsUnverifiedCaller() {
   var status = JSON.parse(doGet().getContent());
   rhTestAssertEqual_(status.ok, true);
   rhTestAssertEqual_(status.service, 'restoring-hope-gift-cards');
+}
+
+function testAdminCanListEmployees() {
+  var fx = rhTestBoot_();
+  rhTestAssertThrows_(function () {
+    listEmployees({ idToken: fx.managerToken });
+  }, 'FORBIDDEN');
+  rhTestAssertThrows_(function () {
+    listEmployees({ idToken: fx.employeeToken });
+  }, 'FORBIDDEN');
+  var listed = listEmployees({ idToken: fx.adminToken });
+  rhTestAssertEqual_(listed.employees.length, 4);
+  rhTestAssertEqual_(listed.employees[0].full_name, 'Ada Admin');
+  rhTestAssertEqual_(listed.employees[1].full_name, 'Casey Cafe');
+  rhTestAssertEqual_(listed.employees[2].full_name, 'Evan Employee');
+  rhTestAssertEqual_(listed.employees[3].full_name, 'Mia Manager');
+  rhTestAssertEqual_(listed.employees[0].email, fx.adminEmail);
+  rhTestAssertEqual_(listed.employees[0].role, 'ADMIN');
+  rhTestAssertEqual_(listed.employees[0].is_active, true);
+  if (JSON.stringify(listed).indexOf('qr_token') !== -1) {
+    throw new Error('Employee list included a card secret');
+  }
+}
+
+function testManagerCanListIssuedCardsWithoutSecrets() {
+  var fx = rhTestBoot_();
+  rhTestAssertThrows_(function () {
+    listGiftCards({ idToken: fx.employeeToken });
+  }, 'FORBIDDEN');
+  var created = createGiftCard({
+    idToken: fx.employeeToken,
+    locationId: fx.locations.THRIFT.location_id,
+    initialAmountCents: 5000,
+    cardType: 'PHYSICAL',
+    customerName: 'Jordan Customer',
+    customerEmail: 'jordan@example.com',
+    idempotencyKey: rhTestKey_('list-card')
+  });
+  activateGiftCard({
+    idToken: fx.employeeToken,
+    cardId: created.card.card_id,
+    locationId: fx.locations.THRIFT.location_id,
+    paymentConfirmed: true,
+    idempotencyKey: rhTestKey_('list-activate')
+  });
+  var listed = listGiftCards({ idToken: fx.managerToken });
+  rhTestAssertEqual_(listed.cards.length, 1);
+  rhTestAssertEqual_(listed.cards[0].card_number, created.card.card_number);
+  rhTestAssertEqual_(listed.cards[0].customer_name, 'Jordan Customer');
+  rhTestAssertEqual_(listed.cards[0].current_balance, 5000);
+  rhTestAssertEqual_(listed.cards[0].status, 'ACTIVE');
+  rhTestAssertEqual_(listed.cards[0].issued_location_name, 'Restoring Hope Thrift Store');
+  rhTestAssertEqual_(listed.money_unit, 'integer_cents');
+  if (JSON.stringify(listed).indexOf('qr_token') !== -1) {
+    throw new Error('Card list included a QR token');
+  }
+}
+
+function testSelectedStoreLimitsCardsAndLiability() {
+  var fx = rhTestBoot_();
+  var thrift = createGiftCard({
+    idToken: fx.employeeToken,
+    locationId: fx.locations.THRIFT.location_id,
+    initialAmountCents: 5000,
+    cardType: 'PHYSICAL',
+    customerName: 'Thrift Buyer',
+    idempotencyKey: rhTestKey_('store-thrift')
+  });
+  activateGiftCard({
+    idToken: fx.employeeToken,
+    cardId: thrift.card.card_id,
+    locationId: fx.locations.THRIFT.location_id,
+    paymentConfirmed: true,
+    idempotencyKey: rhTestKey_('store-thrift-pay')
+  });
+  var cafe = createGiftCard({
+    idToken: fx.cafeToken,
+    locationId: fx.locations.CAFE.location_id,
+    initialAmountCents: 2000,
+    cardType: 'PHYSICAL',
+    customerName: 'Cafe Buyer',
+    idempotencyKey: rhTestKey_('store-cafe')
+  });
+  activateGiftCard({
+    idToken: fx.cafeToken,
+    cardId: cafe.card.card_id,
+    locationId: fx.locations.CAFE.location_id,
+    paymentConfirmed: true,
+    idempotencyKey: rhTestKey_('store-cafe-pay')
+  });
+  var all = listGiftCards({ idToken: fx.adminToken });
+  rhTestAssertEqual_(all.location_id, '');
+  rhTestAssertEqual_(all.cards.length, 2);
+  var thriftList = listGiftCards({
+    idToken: fx.adminToken,
+    locationId: fx.locations.THRIFT.location_id
+  });
+  rhTestAssertEqual_(thriftList.location_id, fx.locations.THRIFT.location_id);
+  rhTestAssertEqual_(thriftList.cards.length, 1);
+  rhTestAssertEqual_(thriftList.cards[0].card_number, thrift.card.card_number);
+  var cafeList = listGiftCards({
+    idToken: fx.adminToken,
+    locationId: fx.locations.CAFE.location_id
+  });
+  rhTestAssertEqual_(cafeList.cards.length, 1);
+  rhTestAssertEqual_(cafeList.cards[0].customer_name, 'Cafe Buyer');
+  rhTestAssertThrows_(function () {
+    listGiftCards({
+      idToken: fx.managerToken,
+      locationId: fx.locations.CAFE.location_id
+    });
+  }, 'FORBIDDEN');
+  var managerList = listGiftCards({ idToken: fx.managerToken });
+  rhTestAssertEqual_(managerList.location_id, fx.locations.THRIFT.location_id);
+  rhTestAssertEqual_(managerList.cards.length, 1);
+  rhTestAssertEqual_(managerList.cards[0].issued_location_id, fx.locations.THRIFT.location_id);
+  rhTestAssertEqual_(getOutstandingGiftCardBalance({ idToken: fx.adminToken }).outstanding_liability_cents, 7000);
+  var thriftLiability = getOutstandingGiftCardBalance({
+    idToken: fx.adminToken,
+    locationId: fx.locations.THRIFT.location_id
+  });
+  rhTestAssertEqual_(thriftLiability.location_id, fx.locations.THRIFT.location_id);
+  rhTestAssertEqual_(thriftLiability.outstanding_liability_cents, 5000);
+  rhTestAssertEqual_(thriftLiability.in_sync, true);
+  rhTestAssertEqual_(getOutstandingGiftCardBalance({
+    idToken: fx.adminToken,
+    locationId: fx.locations.CAFE.location_id
+  }).outstanding_liability_cents, 2000);
+  rhTestAssertThrows_(function () {
+    getOutstandingGiftCardBalance({
+      idToken: fx.managerToken,
+      locationId: fx.locations.CAFE.location_id
+    });
+  }, 'FORBIDDEN');
+}
+
+function testActivationStoresThePurchaserName() {
+  var fx = rhTestBoot_();
+  var series = createBlankGiftCards({
+    idToken: fx.managerToken,
+    locationId: fx.locations.THRIFT.location_id,
+    count: 2,
+    idempotencyKey: rhTestKey_('name-blanks')
+  });
+  var saleKey = rhTestKey_('name-sale');
+  var sold = activateGiftCard({
+    idToken: fx.employeeToken,
+    cardId: series.cards[0].card_id,
+    locationId: fx.locations.THRIFT.location_id,
+    paymentConfirmed: true,
+    amountCents: 5000,
+    customerName: 'Avery Buyer',
+    idempotencyKey: saleKey
+  });
+  rhTestAssertEqual_(sold.card.customer_name, 'Avery Buyer');
+  rhTestAssertEqual_(sold.card.current_balance, 5000);
+  var unnamed = activateGiftCard({
+    idToken: fx.employeeToken,
+    cardId: series.cards[1].card_id,
+    locationId: fx.locations.THRIFT.location_id,
+    paymentConfirmed: true,
+    amountCents: 2000,
+    idempotencyKey: rhTestKey_('name-none')
+  });
+  rhTestAssertEqual_(unnamed.card.customer_name, '');
+  rhTestAssertThrows_(function () {
+    activateGiftCard({
+      idToken: fx.employeeToken,
+      cardId: series.cards[0].card_id,
+      locationId: fx.locations.THRIFT.location_id,
+      paymentConfirmed: true,
+      amountCents: 5000,
+      customerName: 'Someone Else',
+      idempotencyKey: saleKey
+    });
+  }, 'IDEMPOTENCY_CONFLICT');
+  var listed = listGiftCards({ idToken: fx.adminToken });
+  var named = null;
+  for (var i = 0; i < listed.cards.length; i++) {
+    if (listed.cards[i].card_id === series.cards[0].card_id) named = listed.cards[i];
+  }
+  rhTestAssertEqual_(named.customer_name, 'Avery Buyer');
 }
 
 function rhTestSetBalance_(cardId, balance) {

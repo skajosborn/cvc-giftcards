@@ -94,6 +94,36 @@ function getGiftCardByQRToken(request) {
   });
 }
 
+function listGiftCards(request) {
+  var actor = rhRequireActor_(request, {
+    roles: ['ADMIN', 'MANAGER'],
+    action: 'GIFT_CARD_LIST'
+  });
+  return rhWithLock_(function (ctx) {
+    actor = rhReloadActor_(ctx, actor);
+    var scope = rhReportScope_(ctx, actor, request);
+    var locations = rhReadSheet_(ctx, RH_SHEET.LOCATIONS).records;
+    var locationNames = {};
+    for (var i = 0; i < locations.length; i++) {
+      locationNames[locations[i].location_id] = locations[i].location_name;
+    }
+    var records = rhReadSheet_(ctx, RH_SHEET.GIFT_CARDS).records;
+    var cards = [];
+    for (var c = 0; c < records.length; c++) {
+      if (scope.locationId && records[c].issued_location_id !== scope.locationId) continue;
+      var view = rhPublicCard_(records[c], actor, 'staff');
+      view.issued_location_name = locationNames[records[c].issued_location_id] || '';
+      cards.push(view);
+    }
+    cards.sort(function (a, b) {
+      if (a.updated_at < b.updated_at) return 1;
+      if (a.updated_at > b.updated_at) return -1;
+      return 0;
+    });
+    return { money_unit: RH_MONEY_UNIT, location_id: scope.locationId, cards: cards };
+  });
+}
+
 function checkGiftCardBalance(request) {
   var actor = rhRequireActor_(request, {
     roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
@@ -302,12 +332,17 @@ function rhActivateGiftCardLocked_(ctx, actor, request) {
   var registerReference = rhOptionalReference_(request.registerReference);
   var idempotencyKey = rhRequireIdempotencyKey_(request.idempotencyKey);
   var amount = rhActivationAmount_(card, request);
+  var customerName = card.customer_name || '';
+  if (request.customerName !== undefined && request.customerName !== null && request.customerName !== '') {
+    customerName = rhOptionalText_(request.customerName, 'customerName', 120);
+  }
   var requestHash = rhRequestHash_({
     op: 'ACTIVATE',
     cardId: card.card_id,
     locationId: location.location_id,
     paymentConfirmed: true,
     amountCents: amount,
+    customerName: customerName,
     notes: notes,
     registerReference: registerReference
   });
@@ -336,7 +371,7 @@ function rhActivateGiftCardLocked_(ctx, actor, request) {
     requestHash: requestHash,
     notes: notes,
     registerReference: registerReference,
-    cardPatch: { activated_at: activatedAt, initial_amount: amount },
+    cardPatch: { activated_at: activatedAt, initial_amount: amount, customer_name: customerName },
     metadata: { payment_confirmed: true }
   });
   rhAudit_(ctx, {
@@ -348,6 +383,7 @@ function rhActivateGiftCardLocked_(ctx, actor, request) {
       card_number: card.card_number,
       amount_cents: amount,
       location_id: location.location_id,
+      customer_present: customerName !== '',
       transaction_id: posted.transaction.transaction_id
     }
   });
