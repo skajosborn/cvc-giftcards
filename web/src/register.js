@@ -114,7 +114,7 @@ export function readStoredIdToken(storage, nowMs) {
 
 export function msUntilIdTokenRefresh(token, nowMs) {
   const exp = idTokenExpiryMs(token);
-  if (!exp) return 0;
+  if (!exp) return null;
   return Math.max(0, exp - nowMs - ID_TOKEN_REFRESH_LEAD_MS);
 }
 
@@ -140,6 +140,17 @@ export function storeScopeFields(locationId) {
 
 export function reloadCardsOnStoreChange(screen) {
   return screen === 'cards';
+}
+
+export function keepCardQr(previous, next) {
+  if (!next) return next;
+  if (next.qr_payload) return next;
+  if (!previous || !previous.qr_payload) return next;
+  if (previous.card_id && next.card_id && previous.card_id !== next.card_id) return next;
+  const kept = Object.assign({}, next);
+  kept.qr_payload = previous.qr_payload;
+  if (previous.qr_token) kept.qr_token = previous.qr_token;
+  return kept;
 }
 
 export function cardsForStore(cards, locationId) {

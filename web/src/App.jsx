@@ -6,6 +6,7 @@ import {
   forgetIdToken,
   formatCents,
   isCompleteCardNumber,
+  keepCardQr,
   msUntilIdTokenRefresh,
   newIdempotencyKey,
   normalizeCardNumber,
@@ -37,7 +38,8 @@ const sampleCard = {
   status: 'ACTIVE',
   current_balance: 2500,
   initial_amount: 2500,
-  customer_name: 'Sample only'
+  customer_name: 'Sample only',
+  qr_payload: 'rhgc:v1:' + 'ab'.repeat(32)
 };
 
 const sampleBlanks = [
@@ -108,6 +110,7 @@ export default function App() {
         if (!cancelled) {
           forgetIdToken(window.localStorage);
           setIdToken('');
+          setSession(null);
           report(error.message, 'error');
         }
       })
@@ -118,6 +121,8 @@ export default function App() {
   useEffect(() => {
     if (!clientId || !idToken) return undefined;
     let cancelled = false;
+    const wait = msUntilIdTokenRefresh(idToken, Date.now());
+    if (wait === null) return undefined;
     const timer = setTimeout(() => {
       loadGoogleIdentity().then((gis) => {
         if (cancelled) return;
@@ -130,7 +135,7 @@ export default function App() {
         });
         gis.prompt();
       }).catch(() => {});
-    }, msUntilIdTokenRefresh(idToken, Date.now()));
+    }, wait);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -156,10 +161,13 @@ export default function App() {
       ? await callRegister('getGiftCardByQRToken', { qrToken: query.qrToken }, idToken)
       : await (async () => {
         const balance = await callRegister('checkGiftCardBalance', { cardNumber: query.cardNumber }, idToken);
-        return callRegister('getGiftCardById', { cardId: balance.card_id }, idToken);
+        return callRegister('getGiftCardById', { cardId: balance.card_id, includeQrToken: true }, idToken);
       })();
-    const history = await callRegister('getTransactionHistory', { cardId: card.card_id }, idToken);
-    setBundle({ card: card, history: history.transactions || [] });
+    const shown = query.qrToken && !card.qr_payload
+      ? Object.assign({}, card, { qr_payload: 'rhgc:v1:' + query.qrToken })
+      : card;
+    const history = await callRegister('getTransactionHistory', { cardId: shown.card_id }, idToken);
+    setBundle({ card: shown, history: history.transactions || [] });
     setAmount('');
     setBuyerName(card.customer_name || '');
     setPaymentChecked(false);
@@ -243,9 +251,10 @@ export default function App() {
         locationId: actingLocation(),
         idempotencyKey: newIdempotencyKey('redeem')
       }, idToken);
-      setBundle({ card: result.card, history: bundle.history });
+      const shown = keepCardQr(bundle.card, result.card);
+      setBundle({ card: shown, history: bundle.history });
       setAmount('');
-      const refreshed = await refreshHistory(result.card);
+      const refreshed = await refreshHistory(shown);
       report(refreshed ? 'Redeemed ' + formatCents(cents) + '.' : 'The balance changed, but the history could not be refreshed.', refreshed ? '' : 'error');
     });
   }
@@ -262,10 +271,11 @@ export default function App() {
         paymentConfirmed: true,
         idempotencyKey: newIdempotencyKey('reload')
       }, idToken);
-      setBundle({ card: result.card, history: bundle.history });
+      const shown = keepCardQr(bundle.card, result.card);
+      setBundle({ card: shown, history: bundle.history });
       setAmount('');
       setPaymentChecked(false);
-      const refreshed = await refreshHistory(result.card);
+      const refreshed = await refreshHistory(shown);
       report(refreshed ? 'Added ' + formatCents(cents) + '.' : 'The balance changed, but the history could not be refreshed.', refreshed ? '' : 'error');
     });
   }
@@ -283,14 +293,22 @@ export default function App() {
   async function suspend() {
     await run(async () => {
       const result = await callRegister('suspendGiftCard', { cardId: bundle.card.card_id }, idToken);
-      setBundle(Object.assign({}, bundle, { card: result.card }));
+      setBundle(Object.assign({}, bundle, { card: keepCardQr(bundle.card, result.card) }));
       report(result.changed ? 'Card suspended.' : 'The card was already suspended.');
     });
   }
 
   async function createCard() {
     if (preview) {
-      report('The preview cannot create a card.');
+      setIssued({
+        card: {
+          card_number: 'RH-SAMP-LEAB-CDEF',
+          initial_amount: 2500,
+          qr_payload: 'rhgc:v1:' + 'ab'.repeat(32)
+        }
+      });
+      setPaymentChecked(false);
+      report('Sample card. The preview did not create one.');
       return;
     }
     await run(async () => {
@@ -371,11 +389,12 @@ export default function App() {
       if (openValue) fields.amountCents = cents;
       if (buyerName.trim()) fields.customerName = buyerName.trim();
       const result = await callRegister('activateGiftCard', fields, idToken);
-      setBundle({ card: result.card, history: bundle.history });
+      const shown = keepCardQr(bundle.card, result.card);
+      setBundle({ card: shown, history: bundle.history });
       setAmount('');
       setBuyerName('');
       setPaymentChecked(false);
-      const refreshed = await refreshHistory(result.card);
+      const refreshed = await refreshHistory(shown);
       report(refreshed
         ? 'Balance is now ' + formatCents(cents) + '.'
         : 'The balance was added, but the history could not be refreshed.', refreshed ? '' : 'error');
@@ -393,9 +412,10 @@ export default function App() {
       }, idToken);
       setIssued(null);
       setDraft({ amount: '', cardType: 'PHYSICAL', customerName: '' });
-      setBundle({ card: result.card, history: [] });
+      const shown = keepCardQr(issued.card, result.card);
+      setBundle({ card: shown, history: [] });
       setScreen('card');
-      const refreshed = await refreshHistory(result.card);
+      const refreshed = await refreshHistory(shown);
       report(refreshed ? 'Card activated.' : 'The card is active, but the history could not be refreshed.', refreshed ? '' : 'error');
     });
   }
@@ -531,6 +551,10 @@ export default function App() {
       setCardsLocationId(chosen);
     } catch (error) {
       if (cardsRequest.current !== requestId) return;
+      setCardsLocationId(chosen);
+      if (error.code === 'UNAUTHENTICATED') {
+        await signOut();
+      }
       report(error.message, 'error');
     } finally {
       if (cardsRequest.current === requestId) setBusy(false);
@@ -571,6 +595,15 @@ export default function App() {
       setScreen('desk');
     } catch (error) {
       if (deskRequest.current !== requestId) return;
+      setDesk({
+        sales: null,
+        redemptions: null,
+        outstanding: null,
+        forLocationId: chosen
+      });
+      if (error.code === 'UNAUTHENTICATED') {
+        await signOut();
+      }
       report(error.message, 'error');
     } finally {
       if (deskRequest.current === requestId) setBusy(false);

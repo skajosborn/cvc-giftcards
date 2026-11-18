@@ -229,6 +229,11 @@ export function CardView({ card, history, amount, onAmount, buyerName, onBuyerNa
       </div>
       <p className="card-number">{card.card_number}</p>
       {card.customer_name ? <p className="quiet">{card.customer_name}</p> : null}
+      {card.qr_payload ? (
+        <article className="print-card card-code">
+          <CardQr card={card} />
+        </article>
+      ) : null}
       {unsold ? (
         <div className="stack">
           <p className="quiet">
@@ -284,6 +289,13 @@ export function CardView({ card, history, amount, onAmount, buyerName, onBuyerNa
   );
 }
 
+function CardQr({ card }) {
+  if (!card || !card.qr_payload) return null;
+  return (
+    <QRCodeSVG value={card.qr_payload} size={148} level="M" marginSize={4} title={card.card_number} />
+  );
+}
+
 export function BlankSeries({ count, onCount, onCreate, cards, onSampleSale, busy, sample }) {
   if (cards && cards.length) {
     return (
@@ -295,9 +307,7 @@ export function BlankSeries({ count, onCount, onCreate, cards, onSampleSale, bus
         <div className="print-sheet">
           {cards.map((card) => (
             <article className="print-card" key={card.card_number}>
-              {card.qr_payload ? (
-                <QRCodeSVG value={card.qr_payload} size={148} level="M" marginSize={4} title={card.card_number} />
-              ) : null}
+              <CardQr card={card} />
               <p className="card-number">{card.card_number}</p>
               {sample ? (
                 <button className="link no-print" type="button" onClick={() => onSampleSale(card)}>Preview the sale</button>
@@ -328,17 +338,21 @@ export function Sell({ draft, issued, onDraft, onCreate, onActivate, paymentChec
   if (issued) {
     return (
       <section className="panel stage stack">
-        <div>
-          {sample ? <span className="sample-mark">Sample</span> : null}
-          <p className="kicker">Write this on the card</p>
-          <p className="card-number">{issued.card.card_number}</p>
+        <div className="stage-head no-print">
+          <h2>Card to print</h2>
         </div>
-        <p className="quiet">The balance stays at {formatCents(0)} until the payment is in the register.</p>
-        <label className="check">
+        <p className="quiet no-print">Print this code onto the card. The balance stays at {formatCents(0)} until the payment is in the register.</p>
+        <article className="print-card">
+          {sample ? <span className="sample-mark no-print">Sample</span> : null}
+          <CardQr card={issued.card} />
+          <p className="card-number">{issued.card.card_number}</p>
+        </article>
+        <label className="check no-print">
           <input type="checkbox" checked={paymentChecked} onChange={(event) => onPayment(event.target.checked)} />
           Payment is in the register
         </label>
-        <button type="button" onClick={onActivate} disabled={busy || sample || !paymentChecked}>Activate {formatCents(issued.card.initial_amount)}</button>
+        <button className="no-print" type="button" onClick={() => window.print()}>Print</button>
+        <button className="no-print" type="button" onClick={onActivate} disabled={busy || sample || !paymentChecked}>Activate {formatCents(issued.card.initial_amount)}</button>
       </section>
     );
   }
@@ -367,7 +381,7 @@ export function Sell({ draft, issued, onDraft, onCreate, onActivate, paymentChec
         Customer name, if you have it
         <input value={draft.customerName} onChange={(event) => onDraft({ customerName: event.target.value })} />
       </label>
-      <button type="button" onClick={onCreate} disabled={busy}>{sample ? 'Preview stops here' : 'Create the card'}</button>
+      <button type="button" onClick={onCreate} disabled={busy}>{sample ? 'Preview the card' : 'Create the card'}</button>
     </section>
   );
 }

@@ -66,6 +66,21 @@ async function main() {
   const cafeCard = { issued_location_id: 'cafe', card_number: 'B' };
   assert.deepStrictEqual(register.cardsForStore([thriftCard, cafeCard], 'thrift'), [thriftCard]);
   assert.deepStrictEqual(register.cardsForStore([thriftCard, cafeCard], ''), [thriftCard, cafeCard]);
+  const kept = register.keepCardQr(
+    { card_id: '1', qr_payload: 'rhgc:v1:abc', qr_token: 'abc' },
+    { card_id: '1', current_balance: 1500 }
+  );
+  assert.strictEqual(kept.qr_payload, 'rhgc:v1:abc');
+  assert.strictEqual(kept.qr_token, 'abc');
+  assert.strictEqual(kept.current_balance, 1500);
+  assert.strictEqual(register.keepCardQr(
+    { card_id: '1', qr_payload: 'rhgc:v1:abc' },
+    { card_id: '2', current_balance: 1500 }
+  ).qr_payload, undefined);
+  assert.strictEqual(register.keepCardQr(
+    { card_id: '1', qr_payload: 'old' },
+    { card_id: '1', qr_payload: 'new' }
+  ).qr_payload, 'new');
   const storage = memoryStorage();
   const future = jwt({ exp: 2_000 });
   register.rememberIdToken(storage, future);
@@ -80,6 +95,7 @@ async function main() {
   assert.strictEqual(register.readStoredIdToken(storage, 1_000_000), '');
   assert.strictEqual(register.msUntilIdTokenRefresh(future, 1_000_000), 700_000);
   assert.strictEqual(register.msUntilIdTokenRefresh(future, 1_800_000), 0);
+  assert.strictEqual(register.msUntilIdTokenRefresh('not-a-token', 1_000_000), null);
   console.log('register helpers passed');
 }
 

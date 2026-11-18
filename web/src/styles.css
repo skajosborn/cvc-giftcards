@@ -614,6 +614,8 @@ dialog::backdrop { background: rgba(28, 25, 21, 0.46); }
 
 .print-card .card-number { font-size: 1.35rem; }
 
+.card-code { margin: 12px 0 18px; }
+
 @media print {
   .preview-banner,
   .mast,
